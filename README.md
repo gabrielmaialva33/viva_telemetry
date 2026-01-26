@@ -12,7 +12,7 @@
 
 <p align="center">
   <b>Professional observability suite for Gleam</b><br/>
-  <sub>Structured logging, metrics collection, and statistical benchmarking</sub>
+  <sub>Structured logging • Metrics collection • Statistical benchmarking</sub>
 </p>
 
 ---
@@ -23,7 +23,53 @@
 gleam add viva_telemetry@1
 ```
 
-## Use
+## Architecture
+
+```mermaid
+graph TB
+    subgraph viva_telemetry
+        direction TB
+        LOG[📝 Log]
+        METRICS[📊 Metrics]
+        BENCH[⚡ Bench]
+    end
+
+    subgraph Handlers
+        CONSOLE[🖥️ Console]
+        JSON[📄 JSON File]
+        FILE[📁 Plain File]
+        CUSTOM[🔧 Custom]
+    end
+
+    subgraph Storage
+        PROCDICT[(Process Dict)]
+        ETS[(ETS Tables)]
+    end
+
+    subgraph Export
+        PROM[Prometheus]
+        MD[Markdown]
+        CSV[JSON/CSV]
+    end
+
+    LOG --> CONSOLE
+    LOG --> JSON
+    LOG --> FILE
+    LOG --> CUSTOM
+    LOG --> PROCDICT
+
+    METRICS --> ETS
+    METRICS --> PROM
+
+    BENCH --> MD
+    BENCH --> CSV
+
+    style LOG fill:#92e492,stroke:#333
+    style METRICS fill:#9292e4,stroke:#333
+    style BENCH fill:#e49292,stroke:#333
+```
+
+## Quick Start
 
 ```gleam
 import viva_telemetry/log
@@ -31,37 +77,51 @@ import viva_telemetry/metrics
 import viva_telemetry/bench
 
 pub fn main() {
-  // Logging - one import setup!
+  // 📝 Logging - one import setup!
   log.configure_console(log.debug_level)
   log.info("Server started", [#("port", "8080")])
 
-  // Metrics
+  // 📊 Metrics
   let requests = metrics.counter("http_requests")
   metrics.inc(requests)
 
-  // Benchmarking
+  // ⚡ Benchmarking
   bench.run("my_function", fn() { heavy_work() })
   |> bench.print()
 }
 ```
 
-## Features
+---
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                      viva_telemetry                             │
-├─────────────────┬─────────────────┬─────────────────────────────┤
-│      LOG        │     METRICS     │           BENCH             │
-├─────────────────┼─────────────────┼─────────────────────────────┤
-│ RFC 5424 Levels │ Counter         │ Statistical Analysis        │
-│ Multiple Handlers│ Gauge          │ Confidence Intervals        │
-│ Context Propagation│ Histogram    │ Comparison (speedup)        │
-│ Lazy Evaluation │ BEAM Memory     │ Export JSON/CSV/Markdown    │
-│ Sampling        │ Prometheus      │ Regression Detection        │
-└─────────────────┴─────────────────┴─────────────────────────────┘
+## 📝 Logging
+
+```mermaid
+flowchart LR
+    A[Log Call] --> B{Level Check}
+    B -->|Enabled| C[Build Entry]
+    B -->|Disabled| X[Skip]
+    C --> D[Add Context]
+    D --> E[Dispatch]
+    E --> F[Console]
+    E --> G[JSON File]
+    E --> H[Custom Handler]
+
+    style A fill:#92e492
+    style X fill:#e49292
 ```
 
-## Logging
+### Features
+
+| Feature | Description |
+|---------|-------------|
+| **RFC 5424 Levels** | Emergency → Trace (9 levels) |
+| **Structured Fields** | Key-value pairs with every log |
+| **Context Propagation** | Inherit fields in nested calls |
+| **Lazy Evaluation** | Avoid string construction when disabled |
+| **Sampling** | Log only N% of high-volume messages |
+| **Multiple Handlers** | Console, JSON, File, Custom |
+
+### Usage
 
 ```gleam
 // Quick setup (one import!)
@@ -90,7 +150,49 @@ log.configure_json("app.jsonl", log.debug_level) // JSON file
 log.configure_full(log.debug_level, "app.jsonl", log.info_level) // Both
 ```
 
-## Metrics
+---
+
+## 📊 Metrics
+
+```mermaid
+flowchart TB
+    subgraph Types
+        C[Counter]
+        G[Gauge]
+        H[Histogram]
+    end
+
+    subgraph Operations
+        C --> INC[inc / inc_by]
+        G --> SET[set / add]
+        H --> OBS[observe / time]
+    end
+
+    subgraph Storage
+        INC --> ETS[(ETS)]
+        SET --> ETS
+        OBS --> ETS
+    end
+
+    subgraph Export
+        ETS --> PROM[to_prometheus]
+        ETS --> BEAM[beam_memory]
+    end
+
+    style C fill:#9292e4
+    style G fill:#9292e4
+    style H fill:#9292e4
+```
+
+### Metric Types
+
+| Type | Use Case | Operations |
+|------|----------|------------|
+| **Counter** | Requests, errors, events | `inc()`, `inc_by(n)` |
+| **Gauge** | Connections, queue size | `set(v)`, `add(v)`, `inc()`, `dec()` |
+| **Histogram** | Latency, response sizes | `observe(v)`, `time(fn)` |
+
+### Usage
 
 ```gleam
 // Counter (monotonically increasing)
@@ -112,12 +214,52 @@ let result = metrics.time_ms(latency, fn() { do_work() })
 
 // BEAM memory tracking
 let mem = metrics.beam_memory()
+// → BeamMemory(total, processes, system, atom, binary, ets)
 
 // Export Prometheus format
 io.println(metrics.to_prometheus())
 ```
 
-## Benchmarking
+---
+
+## ⚡ Benchmarking
+
+```mermaid
+flowchart LR
+    A[Function] --> B[Warmup]
+    B --> C[Collect Samples]
+    C --> D[Calculate Stats]
+    D --> E[Results]
+
+    E --> F[Print]
+    E --> G[to_json]
+    E --> H[to_markdown]
+    E --> I[Compare]
+
+    style A fill:#e49292
+    style E fill:#92e492
+```
+
+### Statistics
+
+Each benchmark calculates:
+
+```
+┌────────────────────────────────────────────────┐
+│  Stats                                         │
+├────────────────────────────────────────────────┤
+│  mean     │ Average duration                   │
+│  stddev   │ Standard deviation                 │
+│  min/max  │ Range                              │
+│  p50      │ Median (50th percentile)           │
+│  p95      │ 95th percentile                    │
+│  p99      │ 99th percentile                    │
+│  ips      │ Iterations per second              │
+│  ci_95    │ 95% confidence interval            │
+└────────────────────────────────────────────────┘
+```
+
+### Usage
 
 ```gleam
 // Simple benchmark
@@ -132,40 +274,45 @@ bench.compare(slow, fast)
 // → v1 vs v2: 2.3x faster 🚀
 
 // Export results
-bench.to_json(result)
-bench.to_markdown(result)
+bench.to_json(result)      // JSON object
+bench.to_json_string(result) // JSON string
+bench.to_markdown(result)  // | Name | Mean | p50 | p99 | IPS |
 ```
 
-### Statistics
-
-Each benchmark includes: **mean**, **stddev**, **min/max**, **p50/p95/p99**, **IPS**, **95% CI**
+---
 
 ## Build
 
 ```sh
-make test   # Run 32 tests
-make bench  # Run benchmarks
-make docs   # Generate documentation
+make test    # Run 32 tests
+make bench   # Run benchmarks
+make log     # Run log example
+make metrics # Run metrics example
+make docs    # Generate documentation
 ```
 
-Or directly:
+## Part of VIVA Ecosystem
 
-```sh
-gleam test
-gleam docs build
+```mermaid
+graph LR
+    VIVA[🧠 VIVA] --> MATH[viva_math]
+    VIVA --> EMOTION[viva_emotion]
+    VIVA --> TENSOR[viva_tensor]
+    VIVA --> AION[viva_aion]
+    VIVA --> GLYPH[viva_glyph]
+    VIVA --> TELEMETRY[viva_telemetry]
+
+    style TELEMETRY fill:#FFAFF3,stroke:#333,stroke-width:2px
 ```
 
-## Part of VIVA
-
-```
-VIVA - Sentient Digital Life
-├── viva_math      → Mathematical foundations
-├── viva_emotion   → PAD emotional dynamics
-├── viva_tensor    → Tensor compression (INT8/NF4/AWQ)
-├── viva_aion      → Time perception
-├── viva_glyph     → Symbolic language
-└── viva_telemetry → Observability (this package)
-```
+| Package | Purpose |
+|---------|---------|
+| **viva_math** | Mathematical foundations |
+| **viva_emotion** | PAD emotional dynamics |
+| **viva_tensor** | Tensor compression (INT8/NF4/AWQ) |
+| **viva_aion** | Time perception |
+| **viva_glyph** | Symbolic language |
+| **viva_telemetry** | Observability ← *this package* |
 
 ## Inspired By
 
@@ -180,5 +327,5 @@ VIVA - Sentient Digital Life
 </p>
 
 <p align="center">
-  <sub>Built with pure Gleam for the BEAM</sub>
+  <sub>Built with pure Gleam for the BEAM ⚗️</sub>
 </p>
