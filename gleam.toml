@@ -1,0 +1,21 @@
+name = "viva_telemetry"
+version = "1.0.0"
+
+description = "Professional observability suite for Gleam: structured logging, metrics, and statistical benchmarking"
+licences = ["Apache-2.0"]
+repository = { type = "github", user = "gabrielmaialva33", repo = "viva_telemetry" }
+links = [
+  { title = "Documentation", href = "https://hexdocs.pm/viva_telemetry" },
+  { title = "VIVA Project", href = "https://github.com/gabrielmaialva33/viva_gleam" },
+]
+
+gleam = ">= 1.11.0"
+target = "erlang"
+
+[dependencies]
+gleam_stdlib = ">= 0.44.0 and < 2.0.0"
+gleam_json = ">= 3.0.0 and < 4.0.0"
+simplifile = ">= 2.2.0 and < 3.0.0"
+
+[dev-dependencies]
+gleeunit = ">= 1.0.0 and < 2.0.0"
