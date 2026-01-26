@@ -64,9 +64,9 @@ graph TB
     BENCH --> MD
     BENCH --> CSV
 
-    style LOG fill:#92e492,stroke:#333
-    style METRICS fill:#9292e4,stroke:#333
-    style BENCH fill:#e49292,stroke:#333
+    style LOG fill:#2E8B57,stroke:#1a5235,color:#fff
+    style METRICS fill:#4169E1,stroke:#2d4a9e,color:#fff
+    style BENCH fill:#CD5C5C,stroke:#8b3d3d,color:#fff
 ```
 
 ## Quick Start
@@ -106,8 +106,8 @@ flowchart LR
     E --> G[JSON File]
     E --> H[Custom Handler]
 
-    style A fill:#92e492
-    style X fill:#e49292
+    style A fill:#2E8B57,stroke:#1a5235,color:#fff
+    style X fill:#CD5C5C,stroke:#8b3d3d,color:#fff
 ```
 
 ### Features
@@ -179,9 +179,9 @@ flowchart TB
         ETS --> BEAM[beam_memory]
     end
 
-    style C fill:#9292e4
-    style G fill:#9292e4
-    style H fill:#9292e4
+    style C fill:#4169E1,stroke:#2d4a9e,color:#fff
+    style G fill:#4169E1,stroke:#2d4a9e,color:#fff
+    style H fill:#4169E1,stroke:#2d4a9e,color:#fff
 ```
 
 ### Metric Types
@@ -236,28 +236,24 @@ flowchart LR
     E --> H[to_markdown]
     E --> I[Compare]
 
-    style A fill:#e49292
-    style E fill:#92e492
+    style A fill:#CD5C5C,stroke:#8b3d3d,color:#fff
+    style E fill:#2E8B57,stroke:#1a5235,color:#fff
 ```
 
 ### Statistics
 
 Each benchmark calculates:
 
-```
-┌────────────────────────────────────────────────┐
-│  Stats                                         │
-├────────────────────────────────────────────────┤
-│  mean     │ Average duration                   │
-│  stddev   │ Standard deviation                 │
-│  min/max  │ Range                              │
-│  p50      │ Median (50th percentile)           │
-│  p95      │ 95th percentile                    │
-│  p99      │ 99th percentile                    │
-│  ips      │ Iterations per second              │
-│  ci_95    │ 95% confidence interval            │
-└────────────────────────────────────────────────┘
-```
+| Stat | Description |
+|------|-------------|
+| **mean** | Average duration |
+| **stddev** | Standard deviation |
+| **min/max** | Range |
+| **p50** | Median (50th percentile) |
+| **p95** | 95th percentile |
+| **p99** | 99th percentile |
+| **ips** | Iterations per second |
+| **ci_95** | 95% confidence interval |
 
 ### Usage
 
