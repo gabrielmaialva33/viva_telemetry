@@ -8,7 +8,8 @@
     set_handlers/1,
     get_context/0,
     set_context/1,
-    should_sample/1
+    should_sample/1,
+    print_stderr/1
 ]).
 
 %% Get current time in microseconds
@@ -47,3 +48,8 @@ should_sample(Rate) when Rate =< 0.0 ->
     false;
 should_sample(Rate) ->
     rand:uniform() < Rate.
+
+%% Print to stderr
+print_stderr(Msg) ->
+    io:format(standard_error, "~ts~n", [Msg]),
+    nil.

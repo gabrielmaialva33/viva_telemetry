@@ -422,5 +422,5 @@ fn set_context(context: Dict(String, String)) -> Nil
 @external(erlang, "viva_telemetry_ffi", "should_sample")
 fn should_sample(rate: Float) -> Bool
 
-@external(erlang, "io", "format")
+@external(erlang, "viva_telemetry_ffi", "print_stderr")
 fn print_stderr(msg: String) -> Nil

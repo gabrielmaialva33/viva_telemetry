@@ -4,8 +4,8 @@
 ////
 //// ## Modules
 //// - `viva_telemetry/log` - Structured logging with handlers
-//// - `viva_telemetry/metrics` - Counters, gauges, histograms (coming soon)
-//// - `viva_telemetry/bench` - Statistical benchmarking (coming soon)
+//// - `viva_telemetry/metrics` - Counters, gauges, histograms
+//// - `viva_telemetry/bench` - Statistical benchmarking
 ////
 //// ## Quick Start
 ////
@@ -13,7 +13,7 @@
 //// import viva_telemetry/log
 ////
 //// pub fn main() {
-////   log.info("Hello from VIVA!", [#("version", "0.1.0")])
+////   log.info("Hello from VIVA!", [])
 //// }
 //// ```
 
@@ -62,5 +62,5 @@ pub const trace_level = level.Trace
 
 /// Get library version
 pub fn version() -> String {
-  "0.1.0"
+  "1.0.0"
 }
