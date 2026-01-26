@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/gabrielmaialva33/viva_gleam/master/.github/assets/viva_telemetry_banner.svg" alt="viva_telemetry" width="800"/>
+  <img src="https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=12,14,30&height=200&section=header&text=viva_telemetry&fontSize=60&fontColor=fff&animation=fadeIn&fontAlignY=35&desc=Observability%20for%20Gleam&descSize=18&descAlignY=55" width="100%"/>
 </p>
 
 <p align="center">
@@ -10,13 +10,12 @@
   <img src="https://img.shields.io/github/license/gabrielmaialva33/viva_telemetry" alt="License"/>
 </p>
 
+<p align="center">
+  <b>Professional observability suite for Gleam</b><br/>
+  <sub>Structured logging, metrics collection, and statistical benchmarking</sub>
+</p>
+
 ---
-
-# viva_telemetry
-
-Professional observability suite for Gleam: **structured logging**, **metrics**, and **statistical benchmarking**.
-
-Inspired by: [structlog](https://www.structlog.org/) (Python), [zap](https://github.com/uber-go/zap) (Go), [tracing](https://tracing.rs/) (Rust)
 
 ## Install
 
@@ -24,175 +23,139 @@ Inspired by: [structlog](https://www.structlog.org/) (Python), [zap](https://git
 gleam add viva_telemetry@1
 ```
 
+## Use
+
+```gleam
+import viva_telemetry/log
+import viva_telemetry/metrics
+import viva_telemetry/bench
+
+pub fn main() {
+  // Logging - one import setup!
+  log.configure_console(log.debug_level)
+  log.info("Server started", [#("port", "8080")])
+
+  // Metrics
+  let requests = metrics.counter("http_requests")
+  metrics.inc(requests)
+
+  // Benchmarking
+  bench.run("my_function", fn() { heavy_work() })
+  |> bench.print()
+}
+```
+
 ## Features
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  viva_telemetry                                                 │
-├─────────────────────────────────────────────────────────────────┤
-│  LOG         │  METRICS      │  BENCH                          │
-│  ├─ Levels   │  ├─ Counter   │  ├─ Statistical analysis        │
-│  ├─ Handlers │  ├─ Gauge     │  ├─ Confidence intervals        │
-│  ├─ Context  │  ├─ Histogram │  ├─ Comparison (speedup)        │
-│  ├─ Sampling │  ├─ BEAM mem  │  └─ Export (JSON/CSV/MD)        │
-│  └─ Lazy     │  └─ Prometheus│                                 │
-└─────────────────────────────────────────────────────────────────┘
+│                      viva_telemetry                             │
+├─────────────────┬─────────────────┬─────────────────────────────┤
+│      LOG        │     METRICS     │           BENCH             │
+├─────────────────┼─────────────────┼─────────────────────────────┤
+│ RFC 5424 Levels │ Counter         │ Statistical Analysis        │
+│ Multiple Handlers│ Gauge          │ Confidence Intervals        │
+│ Context Propagation│ Histogram    │ Comparison (speedup)        │
+│ Lazy Evaluation │ BEAM Memory     │ Export JSON/CSV/Markdown    │
+│ Sampling        │ Prometheus      │ Regression Detection        │
+└─────────────────┴─────────────────┴─────────────────────────────┘
 ```
 
 ## Logging
 
 ```gleam
-import viva_telemetry/log
+// Quick setup (one import!)
+log.configure_console(log.debug_level)
 
-pub fn main() {
-  // Quick setup (one import!)
-  log.configure_console(log.debug_level)
+// Structured logging
+log.info("User logged in", [#("user_id", "42"), #("ip", "192.168.1.1")])
 
-  // Structured logging
-  log.info("Server started", [#("port", "8080")])
+// Context propagation
+log.with_context([#("request_id", "abc123")], fn() {
+  log.debug("Processing...")  // inherits request_id
+})
 
-  // Context propagation
-  log.with_context([#("request_id", "abc123")], fn() {
-    log.debug("Processing request", [])
-  })
+// Lazy evaluation - avoid string construction when disabled
+log.debug_lazy(fn() { "Heavy: " <> expensive_to_string(data) }, [])
 
-  // Lazy evaluation (avoid string construction when disabled)
-  log.debug_lazy(fn() { "Item: " <> expensive_to_string(data) }, [])
-
-  // Sampling for high-volume logs
-  log.sampled(log.trace_level, 0.01, "Hot path", [])
-}
+// Sampling for high-volume logs (1% of messages)
+log.sampled(log.trace_level, 0.01, "Hot path", [])
 ```
-
-### Log Levels (RFC 5424)
-
-| Level | Constant | Severity |
-|-------|----------|----------|
-| Emergency | `log.emergency_level` | 0 |
-| Alert | `log.alert_level` | 1 |
-| Critical | `log.critical_level` | 2 |
-| Error | `log.error_level` | 3 |
-| Warning | `log.warning_level` | 4 |
-| Notice | `log.notice_level` | 5 |
-| Info | `log.info_level` | 6 |
-| Debug | `log.debug_level` | 7 |
-| Trace | `log.trace_level` | 8 |
 
 ### Handlers
 
 ```gleam
-import viva_telemetry/log
-import viva_telemetry/log/handler
-
-// Console only
-log.configure_console(log.info_level)
-
-// JSON file only
-log.configure_json("app.jsonl", log.debug_level)
-
-// Console + JSON
-log.configure_full(log.debug_level, "app.jsonl", log.info_level)
-
-// Custom handler
-log.configure([
-  handler.console_with_level(log.info_level),
-  handler.json_with_level("app.jsonl", log.debug_level),
-  handler.custom(log.error_level, fn(entry) { send_to_slack(entry) }),
-])
+log.configure_console(log.info_level)           // Console only
+log.configure_json("app.jsonl", log.debug_level) // JSON file
+log.configure_full(log.debug_level, "app.jsonl", log.info_level) // Both
 ```
 
 ## Metrics
 
 ```gleam
-import viva_telemetry/metrics
+// Counter (monotonically increasing)
+let requests = metrics.counter("http_requests_total")
+metrics.inc(requests)
+metrics.inc_by(requests, 5)
 
-pub fn main() {
-  // Counter
-  let requests = metrics.counter("http_requests_total")
-  metrics.inc(requests)
-  metrics.inc_by(requests, 5)
+// Gauge (can go up or down)
+let connections = metrics.gauge("active_connections")
+metrics.set(connections, 42.0)
+metrics.gauge_inc(connections)
 
-  // Gauge
-  let active = metrics.gauge("active_connections")
-  metrics.set(active, 42)
-  metrics.inc_gauge(active)
-  metrics.dec_gauge(active)
+// Histogram (distribution)
+let latency = metrics.histogram("latency_ms", [10.0, 50.0, 100.0, 500.0])
+metrics.observe(latency, 75.5)
 
-  // Histogram with custom buckets
-  let latency = metrics.histogram("request_latency_ms", [10.0, 50.0, 100.0, 500.0])
-  metrics.observe(latency, 75.5)
+// Time a function automatically
+let result = metrics.time_ms(latency, fn() { do_work() })
 
-  // Time a function automatically
-  let result = metrics.time_ms(latency, fn() { do_work() })
+// BEAM memory tracking
+let mem = metrics.beam_memory()
 
-  // With labels
-  let labeled = metrics.counter_with_labels("http_requests", [#("method", "GET")])
-
-  // BEAM memory tracking
-  let mem = metrics.beam_memory()
-  // → Dict with total, processes, atom, binary, code, ets
-
-  // Export Prometheus format
-  io.println(metrics.to_prometheus())
-}
+// Export Prometheus format
+io.println(metrics.to_prometheus())
 ```
 
 ## Benchmarking
 
 ```gleam
-import viva_telemetry/bench
+// Simple benchmark
+bench.run("fib_recursive", fn() { fib(30) })
+|> bench.print()
 
-pub fn main() {
-  // Simple benchmark
-  let result = bench.run("fib_recursive", fn() { fib(20) })
+// Compare implementations
+let slow = bench.run("v1", fn() { algo_v1() })
+let fast = bench.run("v2", fn() { algo_v2() })
+bench.compare(slow, fast)
+|> bench.print_comparison()
+// → v1 vs v2: 2.3x faster 🚀
 
-  // With configuration
-  let result = bench.run_with_config(
-    "fib",
-    fn() { fib(30) },
-    bench.Config(warmup_ms: 500, duration_ms: 2000, confidence: 0.95),
-  )
-
-  // Compare two implementations
-  let comparison = bench.compare(
-    bench.Fn("recursive", fn() { fib_recursive(20) }),
-    bench.Fn("iterative", fn() { fib_iterative(20) }),
-  )
-  // → Comparison(speedup: 2.3x, significant: True)
-
-  // Export results
-  bench.to_json(result)
-  bench.to_markdown(result)
-}
+// Export results
+bench.to_json(result)
+bench.to_markdown(result)
 ```
 
 ### Statistics
 
-Each benchmark returns:
-
-```gleam
-Stats(
-  mean: Float,      // Average duration
-  stddev: Float,    // Standard deviation
-  min: Float,       // Minimum
-  max: Float,       // Maximum
-  p50: Float,       // Median
-  p95: Float,       // 95th percentile
-  p99: Float,       // 99th percentile
-  ips: Float,       // Iterations per second
-  ci_95: #(Float, Float),  // 95% confidence interval
-)
-```
+Each benchmark includes: **mean**, **stddev**, **min/max**, **p50/p95/p99**, **IPS**, **95% CI**
 
 ## Build
 
 ```sh
-gleam build      # Build
-gleam test       # Run tests (17 passing)
-gleam docs build # Generate documentation
+make test   # Run 32 tests
+make bench  # Run benchmarks
+make docs   # Generate documentation
 ```
 
-## Part of VIVA Ecosystem
+Or directly:
+
+```sh
+gleam test
+gleam docs build
+```
+
+## Part of VIVA
 
 ```
 VIVA - Sentient Digital Life
@@ -204,7 +167,17 @@ VIVA - Sentient Digital Life
 └── viva_telemetry → Observability (this package)
 ```
 
+## Inspired By
+
+- **Logging**: [structlog](https://structlog.org/) (Python), [zap](https://github.com/uber-go/zap) (Go), [tracing](https://tracing.rs/) (Rust)
+- **Metrics**: Prometheus, BEAM telemetry
+- **Benchmarking**: criterion (Rust), benchee (Elixir)
+
 ---
+
+<p align="center">
+  <img src="https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=12,14,30&height=100&section=footer" width="100%"/>
+</p>
 
 <p align="center">
   <sub>Built with pure Gleam for the BEAM</sub>
