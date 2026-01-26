@@ -276,8 +276,10 @@ pub fn bench_run_with_config_test() {
 
 pub fn bench_compare_test() {
   // Use fib with different inputs to ensure measurable difference
-  let slow = bench.run_with_config("fib20", fn() { fib(20) }, bench.config(2, 20))
-  let fast = bench.run_with_config("fib10", fn() { fib(10) }, bench.config(2, 20))
+  let slow =
+    bench.run_with_config("fib20", fn() { fib(20) }, bench.config(2, 20))
+  let fast =
+    bench.run_with_config("fib10", fn() { fib(10) }, bench.config(2, 20))
 
   let cmp = bench.compare(slow, fast)
   assert cmp.baseline == "fib20"
@@ -287,7 +289,8 @@ pub fn bench_compare_test() {
 }
 
 pub fn bench_to_json_test() {
-  let result = bench.run_with_config("json_test", fn() { 1 + 1 }, bench.config(2, 10))
+  let result =
+    bench.run_with_config("json_test", fn() { 1 + 1 }, bench.config(2, 10))
   let json_str = bench.to_json_string(result)
 
   // Should contain benchmark name
@@ -295,7 +298,8 @@ pub fn bench_to_json_test() {
 }
 
 pub fn bench_to_markdown_test() {
-  let result = bench.run_with_config("md_test", fn() { 1 + 1 }, bench.config(2, 10))
+  let result =
+    bench.run_with_config("md_test", fn() { 1 + 1 }, bench.config(2, 10))
   let md = bench.to_markdown(result)
 
   // Should be a table row
