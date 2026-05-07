@@ -96,9 +96,10 @@ pub fn inc(counter: Counter) -> Nil {
 
 /// Increment counter by value
 pub fn inc_by(counter: Counter, value: Int) -> Nil {
-  let key = counter_key(counter)
-  let current = get_counter_value(key)
-  set_counter_value(key, current + value)
+  case value <= 0 {
+    True -> Nil
+    False -> add_counter_value(counter_key(counter), value)
+  }
 }
 
 /// Get counter value
@@ -120,7 +121,10 @@ pub fn gauge(name: String) -> Gauge {
 }
 
 /// Create a gauge with labels
-pub fn gauge_with_labels(name: String, labels: List(#(String, String))) -> Gauge {
+pub fn gauge_with_labels(
+  name: String,
+  labels: List(#(String, String)),
+) -> Gauge {
   Gauge(name: name, labels: dict.from_list(labels))
 }
 
@@ -161,7 +165,7 @@ fn gauge_key(gauge: Gauge) -> String {
 
 /// Create a new histogram with buckets
 pub fn histogram(name: String, buckets: List(Float)) -> Histogram {
-  Histogram(name: name, buckets: buckets, labels: dict.new())
+  Histogram(name: name, buckets: sort_buckets(buckets), labels: dict.new())
 }
 
 /// Create a histogram with labels
@@ -170,7 +174,11 @@ pub fn histogram_with_labels(
   buckets: List(Float),
   labels: List(#(String, String)),
 ) -> Histogram {
-  Histogram(name: name, buckets: buckets, labels: dict.from_list(labels))
+  Histogram(
+    name: name,
+    buckets: sort_buckets(buckets),
+    labels: dict.from_list(labels),
+  )
 }
 
 /// Default buckets for latency (ms)
@@ -180,41 +188,38 @@ pub fn default_latency_buckets() -> List(Float) {
 
 /// Observe a value in the histogram
 pub fn observe(histogram: Histogram, value: Float) -> Nil {
-  let key = histogram_key(histogram)
-
   // Update sum
-  let sum_key = key <> "_sum"
+  let sum_key = histogram_sample_key(histogram, "_sum", [])
   let current_sum = get_gauge_value(sum_key)
   set_gauge_value(sum_key, current_sum +. value)
 
   // Update count
-  let count_key = key <> "_count"
-  let current_count = get_counter_value(count_key)
-  set_counter_value(count_key, current_count + 1)
+  let count_key = histogram_sample_key(histogram, "_count", [])
+  add_counter_value(count_key, 1)
 
   // Update buckets
   list.each(histogram.buckets, fn(bucket) {
     case value <=. bucket {
       True -> {
-        let bucket_key = key <> "_bucket_" <> float.to_string(bucket)
-        let current = get_counter_value(bucket_key)
-        set_counter_value(bucket_key, current + 1)
+        let bucket_key =
+          histogram_sample_key(histogram, "_bucket", [
+            #("le", float.to_string(bucket)),
+          ])
+        add_counter_value(bucket_key, 1)
       }
       False -> Nil
     }
   })
 
   // Update +Inf bucket
-  let inf_key = key <> "_bucket_inf"
-  let inf_count = get_counter_value(inf_key)
-  set_counter_value(inf_key, inf_count + 1)
+  let inf_key = histogram_sample_key(histogram, "_bucket", [#("le", "+Inf")])
+  add_counter_value(inf_key, 1)
 }
 
 /// Get histogram stats
 pub fn get_histogram_stats(histogram: Histogram) -> #(Int, Float) {
-  let key = histogram_key(histogram)
-  let count = get_counter_value(key <> "_count")
-  let sum = get_gauge_value(key <> "_sum")
+  let count = get_counter_value(histogram_sample_key(histogram, "_count", []))
+  let sum = get_gauge_value(histogram_sample_key(histogram, "_sum", []))
   #(count, sum)
 }
 
@@ -241,10 +246,6 @@ pub fn time_ms(histogram: Histogram, f: fn() -> a) -> a {
 // FFI for timing
 @external(erlang, "timer", "tc")
 fn timer_tc(f: fn() -> a) -> #(Int, a)
-
-fn histogram_key(histogram: Histogram) -> String {
-  histogram.name <> labels_to_string(histogram.labels)
-}
 
 // ============================================================================
 // BEAM Memory
@@ -292,17 +293,32 @@ pub fn to_prometheus() -> String {
     |> list.map(fn(kv) { kv.0 <> " " <> float.to_string(kv.1) })
 
   let memory_lines = [
+    "# TYPE beam_memory_total_bytes gauge",
     "beam_memory_total_bytes " <> int.to_string(mem.total),
+    "# TYPE beam_memory_processes_bytes gauge",
     "beam_memory_processes_bytes " <> int.to_string(mem.processes),
+    "# TYPE beam_memory_system_bytes gauge",
     "beam_memory_system_bytes " <> int.to_string(mem.system),
+    "# TYPE beam_memory_atom_bytes gauge",
     "beam_memory_atom_bytes " <> int.to_string(mem.atom),
+    "# TYPE beam_memory_binary_bytes gauge",
     "beam_memory_binary_bytes " <> int.to_string(mem.binary),
+    "# TYPE beam_memory_ets_bytes gauge",
     "beam_memory_ets_bytes " <> int.to_string(mem.ets),
   ]
 
   [counter_lines, gauge_lines, memory_lines]
   |> list.flatten
   |> string.join("\n")
+  |> append_final_newline
+}
+
+/// Clear all in-memory metrics.
+///
+/// This is primarily useful for tests and short-lived scripts that want a clean
+/// registry before running a scenario.
+pub fn reset() -> Nil {
+  clear_all()
 }
 
 // ============================================================================
@@ -315,10 +331,38 @@ fn labels_to_string(labels: Dict(String, String)) -> String {
     _ -> {
       let pairs =
         dict.to_list(labels)
-        |> list.map(fn(kv) { kv.0 <> "=\"" <> kv.1 <> "\"" })
+        |> list.map(fn(kv) { kv.0 <> "=\"" <> escape_label_value(kv.1) <> "\"" })
         |> string.join(",")
       "{" <> pairs <> "}"
     }
+  }
+}
+
+fn sort_buckets(buckets: List(Float)) -> List(Float) {
+  list.sort(buckets, fn(a, b) { float.compare(a, with: b) })
+}
+
+fn histogram_sample_key(
+  histogram: Histogram,
+  suffix: String,
+  extra_labels: List(#(String, String)),
+) -> String {
+  histogram.name
+  <> suffix
+  <> labels_to_string(dict.merge(histogram.labels, dict.from_list(extra_labels)))
+}
+
+fn escape_label_value(value: String) -> String {
+  value
+  |> string.replace(each: "\\", with: "\\\\")
+  |> string.replace(each: "\"", with: "\\\"")
+  |> string.replace(each: "\n", with: "\\n")
+}
+
+fn append_final_newline(output: String) -> String {
+  case output {
+    "" -> ""
+    _ -> output <> "\n"
   }
 }
 
@@ -329,8 +373,8 @@ fn labels_to_string(labels: Dict(String, String)) -> String {
 @external(erlang, "viva_telemetry_metrics_ffi", "get_counter_value")
 fn get_counter_value(key: String) -> Int
 
-@external(erlang, "viva_telemetry_metrics_ffi", "set_counter_value")
-fn set_counter_value(key: String, value: Int) -> Nil
+@external(erlang, "viva_telemetry_metrics_ffi", "add_counter_value")
+fn add_counter_value(key: String, value: Int) -> Nil
 
 @external(erlang, "viva_telemetry_metrics_ffi", "get_gauge_value")
 fn get_gauge_value(key: String) -> Float
@@ -346,3 +390,6 @@ fn get_all_gauges() -> Dict(String, Float)
 
 @external(erlang, "viva_telemetry_metrics_ffi", "get_beam_memory")
 fn get_beam_memory() -> Dict(String, Int)
+
+@external(erlang, "viva_telemetry_metrics_ffi", "clear_all")
+fn clear_all() -> Nil

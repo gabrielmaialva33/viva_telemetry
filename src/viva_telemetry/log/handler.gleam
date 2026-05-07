@@ -19,6 +19,8 @@ pub type Handler {
   FileHandler(config: FileConfig)
   /// Custom handler - user-provided function
   CustomHandler(config: CustomConfig)
+  /// Erlang logger handler - forwards structured reports to `:logger`
+  ErlangLoggerHandler(config: ErlangLoggerConfig)
 }
 
 /// Console handler configuration
@@ -64,6 +66,16 @@ pub type CustomConfig {
     level: Level,
     /// Custom handler function
     handler_fn: fn(Entry) -> Nil,
+  )
+}
+
+/// Erlang logger handler configuration
+pub type ErlangLoggerConfig {
+  ErlangLoggerConfig(
+    /// Minimum level to log
+    level: Level,
+    /// Report name attached to logger metadata
+    logger_name: String,
   )
 }
 
@@ -122,6 +134,19 @@ pub fn custom(lvl: Level, handler_fn: fn(Entry) -> Nil) -> Handler {
   CustomHandler(CustomConfig(level: lvl, handler_fn: handler_fn))
 }
 
+/// Erlang logger handler
+pub fn erlang_logger(lvl: Level) -> Handler {
+  ErlangLoggerHandler(ErlangLoggerConfig(
+    level: lvl,
+    logger_name: "viva_telemetry",
+  ))
+}
+
+/// Erlang logger handler with a custom logger name
+pub fn erlang_logger_with_name(lvl: Level, name: String) -> Handler {
+  ErlangLoggerHandler(ErlangLoggerConfig(level: lvl, logger_name: name))
+}
+
 /// Get handler's minimum level
 pub fn get_level(handler: Handler) -> Level {
   case handler {
@@ -129,6 +154,7 @@ pub fn get_level(handler: Handler) -> Level {
     JsonHandler(c) -> c.level
     FileHandler(c) -> c.level
     CustomHandler(c) -> c.level
+    ErlangLoggerHandler(c) -> c.level
   }
 }
 

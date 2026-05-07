@@ -1,5 +1,5 @@
 name = "viva_telemetry"
-version = "1.0.1"
+version = "1.0.101"
 
 description = "Professional observability suite for Gleam: structured logging, metrics, and statistical benchmarking"
 licences = ["Apache-2.0"]

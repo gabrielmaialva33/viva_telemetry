@@ -9,7 +9,8 @@
     get_context/0,
     set_context/1,
     should_sample/1,
-    print_stderr/1
+    print_stderr/1,
+    erlang_log/4
 ]).
 
 %% Get current time in microseconds
@@ -53,3 +54,34 @@ should_sample(Rate) ->
 print_stderr(Msg) ->
     io:format(standard_error, "~ts~n", [Msg]),
     nil.
+
+erlang_log(Level, LoggerName, Message, Fields) ->
+    Report = maps:from_list([{msg, Message} | fields_to_report(Fields)]),
+    Metadata = #{logger_name => LoggerName},
+    logger:log(level_atom(Level), Report, Metadata),
+    nil.
+
+fields_to_report(Fields) when is_map(Fields) ->
+    maps:to_list(Fields);
+fields_to_report(_) ->
+    [].
+
+level_atom(<<"EMERGENCY">>) -> emergency;
+level_atom(<<"ALERT">>) -> alert;
+level_atom(<<"CRITICAL">>) -> critical;
+level_atom(<<"ERROR">>) -> error;
+level_atom(<<"WARNING">>) -> warning;
+level_atom(<<"NOTICE">>) -> notice;
+level_atom(<<"INFO">>) -> info;
+level_atom(<<"DEBUG">>) -> debug;
+level_atom(<<"TRACE">>) -> debug;
+level_atom("EMERGENCY") -> emergency;
+level_atom("ALERT") -> alert;
+level_atom("CRITICAL") -> critical;
+level_atom("ERROR") -> error;
+level_atom("WARNING") -> warning;
+level_atom("NOTICE") -> notice;
+level_atom("INFO") -> info;
+level_atom("DEBUG") -> debug;
+level_atom("TRACE") -> debug;
+level_atom(_) -> info.

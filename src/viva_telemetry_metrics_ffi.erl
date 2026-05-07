@@ -4,12 +4,13 @@
 -module(viva_telemetry_metrics_ffi).
 -export([
     get_counter_value/1,
-    set_counter_value/2,
+    add_counter_value/2,
     get_gauge_value/1,
     set_gauge_value/2,
     get_all_counters/0,
     get_all_gauges/0,
     get_beam_memory/0,
+    clear_all/0,
     ensure_table/0
 ]).
 
@@ -38,9 +39,9 @@ get_counter_value(Key) ->
         [] -> 0
     end.
 
-set_counter_value(Key, Value) ->
+add_counter_value(Key, Value) ->
     ensure_table(),
-    ets:insert(?COUNTER_TABLE, {Key, Value}),
+    _ = ets:update_counter(?COUNTER_TABLE, Key, {2, Value}, {Key, 0}),
     nil.
 
 %% Gauge operations
@@ -82,3 +83,9 @@ get_beam_memory() ->
         <<"code">> => proplists:get_value(code, MemInfo, 0),
         <<"ets">> => proplists:get_value(ets, MemInfo, 0)
     }.
+
+clear_all() ->
+    ensure_table(),
+    ets:delete_all_objects(?COUNTER_TABLE),
+    ets:delete_all_objects(?GAUGE_TABLE),
+    nil.

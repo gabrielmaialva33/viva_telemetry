@@ -1,5 +1,6 @@
 import gleam/dict
 import gleam/list
+import gleam/string
 import gleeunit
 import viva_telemetry/bench
 import viva_telemetry/log
@@ -103,6 +104,11 @@ pub fn handler_should_log_test() {
   assert handler.should_log(h, level.Debug) == False
 }
 
+pub fn handler_erlang_logger_default_test() {
+  let h = handler.erlang_logger(level.Info)
+  assert handler.get_level(h) == level.Info
+}
+
 // Log module tests (integration)
 pub fn log_configure_test() {
   log.configure([handler.console()])
@@ -148,7 +154,7 @@ pub fn log_would_log_debug_level_test() {
 
 pub fn log_lazy_functions_exist_test() {
   // Just verify lazy functions compile and can be called
-  log.configure_console(log.info_level)
+  log.configure([handler.custom(log.info_level, fn(_) { Nil })])
 
   // These should not panic (debug won't be logged with info level)
   log.debug_lazy(fn() { "lazy debug" }, [])
@@ -159,11 +165,38 @@ pub fn log_lazy_functions_exist_test() {
   log.error_lazy(fn() { "lazy error" }, [])
 }
 
+pub fn log_configure_erlang_test() {
+  log.configure_erlang(log.info_level)
+  assert log.would_log(level.Info) == True
+  assert log.would_log(level.Debug) == False
+}
+
+pub fn named_logger_api_test() {
+  log.configure([handler.custom(log.debug_level, fn(_) { Nil })])
+
+  let logger =
+    log.logger("viva.test")
+    |> log.with_field("request_id", "req-1")
+    |> log.with_int("attempt", 2)
+    |> log.with_float("duration_ms", 12.5)
+    |> log.with_bool("cached", False)
+
+  logger
+  |> log.logger_info("named logger works")
+  |> log.logger_info_with("with extra fields", [#("route", "/health")])
+  |> log.logger_debug("debug still works")
+  |> log.logger_warning("warning still works")
+  |> log.logger_error("error still works")
+
+  assert log.would_log(level.Debug) == True
+}
+
 // ============================================================================
 // Metrics tests
 // ============================================================================
 
 pub fn metrics_counter_test() {
+  metrics.reset()
   let c = metrics.counter("test_counter")
   metrics.inc(c)
   metrics.inc(c)
@@ -172,12 +205,22 @@ pub fn metrics_counter_test() {
 }
 
 pub fn metrics_counter_with_labels_test() {
+  metrics.reset()
   let c = metrics.counter_with_labels("http_requests", [#("method", "GET")])
   metrics.inc(c)
   assert metrics.get_counter(c) == 1
 }
 
+pub fn metrics_counter_does_not_decrement_test() {
+  metrics.reset()
+  let c = metrics.counter("monotonic_counter")
+  metrics.inc_by(c, 2)
+  metrics.inc_by(c, -1)
+  assert metrics.get_counter(c) == 2
+}
+
 pub fn metrics_gauge_test() {
+  metrics.reset()
   let g = metrics.gauge("test_gauge")
   metrics.set(g, 42.0)
   assert metrics.get_gauge(g) == 42.0
@@ -193,6 +236,7 @@ pub fn metrics_gauge_test() {
 }
 
 pub fn metrics_histogram_test() {
+  metrics.reset()
   let h = metrics.histogram("latency", [10.0, 50.0, 100.0])
   metrics.observe(h, 25.0)
   metrics.observe(h, 75.0)
@@ -204,6 +248,7 @@ pub fn metrics_histogram_test() {
 }
 
 pub fn metrics_histogram_time_test() {
+  metrics.reset()
   let h = metrics.histogram("timing", [100.0, 1000.0, 10_000.0])
 
   // Time a simple function
@@ -229,6 +274,7 @@ pub fn metrics_beam_memory_test() {
 }
 
 pub fn metrics_prometheus_export_test() {
+  metrics.reset()
   // Create some metrics
   let c = metrics.counter("prom_test_counter")
   metrics.inc(c)
@@ -236,6 +282,34 @@ pub fn metrics_prometheus_export_test() {
   let output = metrics.to_prometheus()
   // Should contain BEAM memory metrics at minimum
   assert output != ""
+}
+
+pub fn metrics_prometheus_histogram_format_test() {
+  metrics.reset()
+  let h =
+    metrics.histogram_with_labels("request_duration_seconds", [0.1, 0.5], [
+      #("route", "/users"),
+    ])
+
+  metrics.observe(h, 0.25)
+
+  let output = metrics.to_prometheus()
+  assert string.contains(
+    output,
+    "request_duration_seconds_bucket{le=\"0.5\",route=\"/users\"} 1",
+  )
+  assert string.contains(
+    output,
+    "request_duration_seconds_bucket{le=\"+Inf\",route=\"/users\"} 1",
+  )
+  assert string.contains(
+    output,
+    "request_duration_seconds_sum{route=\"/users\"} 0.25",
+  )
+  assert string.contains(
+    output,
+    "request_duration_seconds_count{route=\"/users\"} 1",
+  )
 }
 
 // ============================================================================

@@ -26,12 +26,15 @@
 //// ```
 
 import gleam/dict.{type Dict}
+import gleam/float
+import gleam/int
 import gleam/io
 import gleam/list
 import simplifile
 import viva_telemetry/log/entry.{type Entry}
 import viva_telemetry/log/handler.{
-  type Handler, ConsoleHandler, CustomHandler, FileHandler, JsonHandler,
+  type Handler, ConsoleHandler, CustomHandler, ErlangLoggerHandler, FileHandler,
+  JsonHandler,
 }
 import viva_telemetry/log/level.{type Level}
 
@@ -65,6 +68,87 @@ pub const debug_level = level.Debug
 
 /// Trace level (fine-grained)
 pub const trace_level = level.Trace
+
+// ============================================================================
+// Named Logger
+// ============================================================================
+
+/// A named immutable logger with persistent structured fields.
+///
+/// This gives applications a small fluent API while keeping the low-level
+/// logging functions available for one-off messages.
+pub opaque type Logger {
+  Logger(source: String, fields: List(#(String, String)))
+}
+
+/// Create a named logger.
+pub fn logger(source: String) -> Logger {
+  Logger(source: source, fields: [])
+}
+
+/// Add a string field to a named logger.
+pub fn with_field(logger: Logger, key: String, value: String) -> Logger {
+  Logger(..logger, fields: [#(key, value), ..logger.fields])
+}
+
+/// Add an integer field to a named logger.
+pub fn with_int(logger: Logger, key: String, value: Int) -> Logger {
+  with_field(logger, key, int.to_string(value))
+}
+
+/// Add a float field to a named logger.
+pub fn with_float(logger: Logger, key: String, value: Float) -> Logger {
+  with_field(logger, key, float.to_string(value))
+}
+
+/// Add a bool field to a named logger.
+pub fn with_bool(logger: Logger, key: String, value: Bool) -> Logger {
+  with_field(logger, key, bool_to_string(value))
+}
+
+/// Add many fields to a named logger.
+pub fn with_fields(logger: Logger, fields: List(#(String, String))) -> Logger {
+  Logger(..logger, fields: list.append(fields, logger.fields))
+}
+
+/// Log an info message with a named logger.
+pub fn logger_info(logger: Logger, message: String) -> Logger {
+  log_named(logger, level.Info, message, [])
+}
+
+/// Log a debug message with a named logger.
+pub fn logger_debug(logger: Logger, message: String) -> Logger {
+  log_named(logger, level.Debug, message, [])
+}
+
+/// Log a warning message with a named logger.
+pub fn logger_warning(logger: Logger, message: String) -> Logger {
+  log_named(logger, level.Warning, message, [])
+}
+
+/// Log an error message with a named logger.
+pub fn logger_error(logger: Logger, message: String) -> Logger {
+  log_named(logger, level.Err, message, [])
+}
+
+/// Log an info message with additional one-off fields.
+pub fn logger_info_with(
+  logger: Logger,
+  message: String,
+  fields: List(#(String, String)),
+) -> Logger {
+  log_named(logger, level.Info, message, fields)
+}
+
+fn log_named(
+  logger: Logger,
+  lvl: Level,
+  message: String,
+  fields: List(#(String, String)),
+) -> Logger {
+  log_from(logger.source, lvl, message, list.append(fields, logger.fields))
+  logger
+}
 
 // ============================================================================
 // Global State (via process dictionary)
@@ -110,6 +194,13 @@ pub fn configure_full(
     handler.console_with_level(console_level),
     handler.json_with_level(json_path, json_level),
   ])
+}
+
+/// Quick setup: forward structured logs to Erlang's built-in `:logger`
+///
+/// This is the recommended production integration when running on the BEAM.
+pub fn configure_erlang(lvl: Level) -> Nil {
+  set_handlers([handler.erlang_logger(lvl)])
 }
 
 /// Add a handler to the existing configuration
@@ -173,7 +264,11 @@ pub fn trace(message: String, fields: List(#(String, String))) -> Nil {
 }
 
 /// Log with explicit level
-pub fn log(lvl: Level, message: String, fields: List(#(String, String))) -> Nil {
+pub fn log(
+  lvl: Level,
+  message: String,
+  fields: List(#(String, String)),
+) -> Nil {
   let e = entry.new(lvl, message, fields)
   let e_with_ctx = entry.with_context(e, get_context())
   dispatch(e_with_ctx)
@@ -399,7 +494,22 @@ fn dispatch_to_handler(e: Entry, h: Handler) -> Nil {
         CustomHandler(config) -> {
           config.handler_fn(e)
         }
+        ErlangLoggerHandler(config) -> {
+          erlang_log(
+            level.to_string(e.level),
+            config.logger_name,
+            e.message,
+            entry.all_fields(e),
+          )
+        }
       }
+  }
+}
+
+fn bool_to_string(value: Bool) -> String {
+  case value {
+    True -> "true"
+    False -> "false"
   }
 }
 
@@ -418,6 +528,14 @@ fn get_context() -> Dict(String, String)
 
 @external(erlang, "viva_telemetry_ffi", "set_context")
 fn set_context(context: Dict(String, String)) -> Nil
+
+@external(erlang, "viva_telemetry_ffi", "erlang_log")
+fn erlang_log(
+  level: String,
+  logger_name: String,
+  message: String,
+  fields: Dict(String, String),
+) -> Nil
 
 @external(erlang, "viva_telemetry_ffi", "should_sample")
 fn should_sample(rate: Float) -> Bool

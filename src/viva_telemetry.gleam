@@ -62,5 +62,5 @@ pub const trace_level = level.Trace
 
 /// Get library version
 pub fn version() -> String {
-  "1.0.1"
+  "1.0.101"
 }
