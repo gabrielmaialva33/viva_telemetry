@@ -8,6 +8,7 @@
 //// - Log levels (RFC 5424)
 //// - Context propagation
 //// - Sampling for high-volume logs
+//// - Erlang `:logger` forwarding for BEAM applications
 ////
 //// ## Quick Start
 ////
@@ -15,13 +16,15 @@
 //// import viva_telemetry/log
 ////
 //// pub fn main() {
-////   // Simple logging
+////   log.configure_erlang(log.info_level)
 ////   log.info("Server started", [#("port", "8080")])
 ////
-////   // With context
-////   log.with_context([#("request_id", "abc123")], fn() {
-////     log.debug("Processing request", [])
-////   })
+////   let logger =
+////     log.logger("app.http")
+////     |> log.with_field("request_id", "abc123")
+////
+////   logger
+////   |> log.logger_info_with("Request completed", [#("status", "200")])
 //// }
 //// ```
 
@@ -30,6 +33,7 @@ import gleam/float
 import gleam/int
 import gleam/io
 import gleam/list
+import gleam/option.{type Option, None, Some}
 import simplifile
 import viva_telemetry/log/entry.{type Entry}
 import viva_telemetry/log/handler.{
@@ -106,9 +110,89 @@ pub fn with_bool(logger: Logger, key: String, value: Bool) -> Logger {
   with_field(logger, key, bool_to_string(value))
 }
 
+/// Add an error field to a named logger.
+pub fn with_error(logger: Logger, error: String) -> Logger {
+  with_field(logger, "error", error)
+}
+
+/// Add a field only when the option contains a value.
+pub fn with_option(
+  logger: Logger,
+  key: String,
+  value: Option(a),
+  encode: fn(a) -> String,
+) -> Logger {
+  case value {
+    Some(value) -> with_field(logger, key, encode(value))
+    None -> logger
+  }
+}
+
+/// Add a result to a named logger.
+///
+/// Successful values are stored under `key`; errors are stored under the
+/// standard `error` field.
+pub fn with_result(
+  logger: Logger,
+  key: String,
+  result: Result(a, b),
+  encode_ok: fn(a) -> String,
+  encode_error: fn(b) -> String,
+) -> Logger {
+  case result {
+    Ok(value) -> with_field(logger, key, encode_ok(value))
+    Error(error) -> with_error(logger, encode_error(error))
+  }
+}
+
 /// Add many fields to a named logger.
 pub fn with_fields(logger: Logger, fields: List(#(String, String))) -> Logger {
   Logger(..logger, fields: list.append(fields, logger.fields))
+}
+
+/// Log with any level using a named logger.
+pub fn logger_log(logger: Logger, lvl: Level, message: String) -> Logger {
+  log_named(logger, lvl, message, [])
+}
+
+/// Log with any level and one-off fields using a named logger.
+pub fn logger_log_with(
+  logger: Logger,
+  lvl: Level,
+  message: String,
+  fields: List(#(String, String)),
+) -> Logger {
+  log_named(logger, lvl, message, fields)
+}
+
+/// Log an emergency message with a named logger.
+pub fn logger_emergency(logger: Logger, message: String) -> Logger {
+  log_named(logger, level.Emergency, message, [])
+}
+
+/// Log an alert message with a named logger.
+pub fn logger_alert(logger: Logger, message: String) -> Logger {
+  log_named(logger, level.Alert, message, [])
+}
+
+/// Log a critical message with a named logger.
+pub fn logger_critical(logger: Logger, message: String) -> Logger {
+  log_named(logger, level.Critical, message, [])
+}
+
+/// Log an error message with a named logger.
+pub fn logger_error(logger: Logger, message: String) -> Logger {
+  log_named(logger, level.Err, message, [])
+}
+
+/// Log a warning message with a named logger.
+pub fn logger_warning(logger: Logger, message: String) -> Logger {
+  log_named(logger, level.Warning, message, [])
+}
+
+/// Log a notice message with a named logger.
+pub fn logger_notice(logger: Logger, message: String) -> Logger {
+  log_named(logger, level.Notice, message, [])
 }
 
 /// Log an info message with a named logger.
@@ -121,14 +205,72 @@ pub fn logger_debug(logger: Logger, message: String) -> Logger {
   log_named(logger, level.Debug, message, [])
 }
 
-/// Log a warning message with a named logger.
-pub fn logger_warning(logger: Logger, message: String) -> Logger {
-  log_named(logger, level.Warning, message, [])
+/// Log a trace message with a named logger.
+pub fn logger_trace(logger: Logger, message: String) -> Logger {
+  log_named(logger, level.Trace, message, [])
 }
 
-/// Log an error message with a named logger.
-pub fn logger_error(logger: Logger, message: String) -> Logger {
-  log_named(logger, level.Err, message, [])
+/// Log an emergency message with additional one-off fields.
+pub fn logger_emergency_with(
+  logger: Logger,
+  message: String,
+  fields: List(#(String, String)),
+) -> Logger {
+  log_named(logger, level.Emergency, message, fields)
+}
+
+/// Log an alert message with additional one-off fields.
+pub fn logger_alert_with(
+  logger: Logger,
+  message: String,
+  fields: List(#(String, String)),
+) -> Logger {
+  log_named(logger, level.Alert, message, fields)
+}
+
+/// Log a critical message with additional one-off fields.
+pub fn logger_critical_with(
+  logger: Logger,
+  message: String,
+  fields: List(#(String, String)),
+) -> Logger {
+  log_named(logger, level.Critical, message, fields)
+}
+
+/// Log an error message with additional one-off fields.
+pub fn logger_error_with(
+  logger: Logger,
+  message: String,
+  fields: List(#(String, String)),
+) -> Logger {
+  log_named(logger, level.Err, message, fields)
+}
+
+/// Log a warning message with additional one-off fields.
+pub fn logger_warning_with(
+  logger: Logger,
+  message: String,
+  fields: List(#(String, String)),
+) -> Logger {
+  log_named(logger, level.Warning, message, fields)
+}
+
+/// Log a notice message with additional one-off fields.
+pub fn logger_notice_with(
+  logger: Logger,
+  message: String,
+  fields: List(#(String, String)),
+) -> Logger {
+  log_named(logger, level.Notice, message, fields)
+}
+
+/// Log a debug message with additional one-off fields.
+pub fn logger_debug_with(
+  logger: Logger,
+  message: String,
+  fields: List(#(String, String)),
+) -> Logger {
+  log_named(logger, level.Debug, message, fields)
 }
 
 /// Log an info message with additional one-off fields.
@@ -138,6 +280,15 @@ pub fn logger_info_with(
   fields: List(#(String, String)),
 ) -> Logger {
   log_named(logger, level.Info, message, fields)
+}
+
+/// Log a trace message with additional one-off fields.
+pub fn logger_trace_with(
+  logger: Logger,
+  message: String,
+  fields: List(#(String, String)),
+) -> Logger {
+  log_named(logger, level.Trace, message, fields)
 }
 
 fn log_named(
@@ -151,10 +302,14 @@ fn log_named(
 }
 
 // ============================================================================
-// Global State (via process dictionary)
+// Process-local configuration
 // ============================================================================
 
-/// Configure global handlers
+/// Configure handlers for the current process.
+///
+/// Logger configuration and context are process-local. Child or worker
+/// processes should configure logging themselves or use Erlang `:logger`
+/// forwarding through `configure_erlang`.
 pub fn configure(handlers: List(Handler)) -> Nil {
   set_handlers(handlers)
 }
@@ -201,6 +356,12 @@ pub fn configure_full(
 /// This is the recommended production integration when running on the BEAM.
 pub fn configure_erlang(lvl: Level) -> Nil {
   set_handlers([handler.erlang_logger(lvl)])
+}
+
+/// Quick setup: forward structured logs to Erlang's built-in `:logger` with a
+/// custom logger name attached as metadata.
+pub fn configure_erlang_with_name(lvl: Level, name: String) -> Nil {
+  set_handlers([handler.erlang_logger_with_name(lvl, name)])
 }
 
 /// Add a handler to the existing configuration

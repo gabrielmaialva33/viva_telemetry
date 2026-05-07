@@ -69,6 +69,9 @@ import viva_telemetry/log
 // Recommended on the BEAM
 log.configure_erlang(log.info_level)
 
+// Recommended when many applications share the same runtime logger
+log.configure_erlang_with_name(log.info_level, "my_app")
+
 // Useful during local development
 log.configure_console(log.debug_level)
 
@@ -94,13 +97,26 @@ Named loggers are immutable values with persistent fields. They are useful for
 passing request, actor, or subsystem context through your own code.
 
 ```gleam
+import gleam/int
+import gleam/option.{Some}
+
 let logger =
   log.logger("app.http")
   |> log.with_field("request_id", "abc123")
   |> log.with_int("attempt", 1)
+  |> log.with_option("user_id", Some(42), int.to_string)
 
 logger
 |> log.logger_info_with("Request completed", [#("status", "200")])
+```
+
+Named loggers also have level-specific helpers with one-off fields:
+
+```gleam
+logger
+|> log.logger_debug_with("Cache lookup", [#("cache", "user_profile")])
+|> log.logger_warning_with("Retrying request", [#("retry", "2")])
+|> log.logger_error_with("Request failed", [#("reason", "timeout")])
 ```
 
 ### Context, Lazy Logs, And Sampling
@@ -224,6 +240,9 @@ gleam docs build
 ## Design Notes
 
 - Logging integrates with Erlang `:logger` for production use on the BEAM.
+- Logging handler configuration and `with_context` data are process-local.
+  Configure each process explicitly, pass named loggers through your own call
+  graph, or forward to Erlang `:logger` for runtime-wide handling.
 - Metrics use ETS-backed storage and atomic counter updates.
 - Prometheus output avoids custom diagram or JavaScript rendering, so it is
   readable on HexDocs, Hex preview, GitHub, and terminals.

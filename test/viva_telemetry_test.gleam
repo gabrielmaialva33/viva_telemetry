@@ -1,5 +1,7 @@
 import gleam/dict
+import gleam/int
 import gleam/list
+import gleam/option.{None, Some}
 import gleam/string
 import gleeunit
 import viva_telemetry/bench
@@ -171,6 +173,12 @@ pub fn log_configure_erlang_test() {
   assert log.would_log(level.Debug) == False
 }
 
+pub fn log_configure_erlang_with_name_test() {
+  log.configure_erlang_with_name(log.warning_level, "viva.test")
+  assert log.would_log(level.Err) == True
+  assert log.would_log(level.Info) == False
+}
+
 pub fn named_logger_api_test() {
   log.configure([handler.custom(log.debug_level, fn(_) { Nil })])
 
@@ -180,15 +188,53 @@ pub fn named_logger_api_test() {
     |> log.with_int("attempt", 2)
     |> log.with_float("duration_ms", 12.5)
     |> log.with_bool("cached", False)
+    |> log.with_error("not_found")
+    |> log.with_option("user_id", Some(42), int_to_string)
+    |> log.with_option("missing", None, int_to_string)
+    |> log.with_result("status", Ok(200), int_to_string, fn(value) { value })
+    |> log.with_result("failed_status", Error("boom"), int_to_string, fn(value) {
+      value
+    })
 
   logger
+  |> log.logger_log(log.notice_level, "generic log works")
+  |> log.logger_log_with(log.notice_level, "generic log with fields works", [
+    #("generic", "true"),
+  ])
+  |> log.logger_emergency("emergency still works")
+  |> log.logger_emergency_with("emergency with fields still works", [
+    #("emergency", "true"),
+  ])
+  |> log.logger_alert("alert still works")
+  |> log.logger_alert_with("alert with fields still works", [#("alert", "true")])
+  |> log.logger_critical("critical still works")
+  |> log.logger_critical_with("critical with fields still works", [
+    #("critical", "true"),
+  ])
   |> log.logger_info("named logger works")
   |> log.logger_info_with("with extra fields", [#("route", "/health")])
   |> log.logger_debug("debug still works")
+  |> log.logger_debug_with("debug with fields still works", [#("debug", "true")])
   |> log.logger_warning("warning still works")
+  |> log.logger_warning_with("warning with fields still works", [
+    #("warning", "true"),
+  ])
+  |> log.logger_notice("notice still works")
+  |> log.logger_notice_with("notice with fields still works", [
+    #("notice", "true"),
+  ])
   |> log.logger_error("error still works")
+  |> log.logger_error_with("error with fields still works", [
+    #("error_id", "e1"),
+  ])
+  |> log.logger_trace("trace still works")
+  |> log.logger_trace_with("trace with fields still works", [#("trace", "true")])
 
   assert log.would_log(level.Debug) == True
+}
+
+fn int_to_string(value: Int) -> String {
+  int.to_string(value)
 }
 
 // ============================================================================
