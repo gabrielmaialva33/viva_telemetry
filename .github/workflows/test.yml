@@ -25,6 +25,7 @@ jobs:
     needs: test
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: erlef/setup-beam@v1
@@ -33,6 +34,22 @@ jobs:
           gleam-version: "1.16.0"
           rebar3-version: "3"
       - run: gleam deps download
-      - run: gleam publish -y
+      - name: Read package metadata
+        id: package
+        run: |
+          echo "name=$(grep '^name =' gleam.toml | cut -d '"' -f 2)" >> "$GITHUB_OUTPUT"
+          echo "version=$(grep '^version =' gleam.toml | cut -d '"' -f 2)" >> "$GITHUB_OUTPUT"
+      - name: Check Hex release
+        id: hex
+        run: |
+          if curl --fail --silent --show-error --output /dev/null \
+            "https://hex.pm/api/packages/${{ steps.package.outputs.name }}/releases/${{ steps.package.outputs.version }}"; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Publish to Hex
+        if: steps.hex.outputs.exists != 'true'
+        run: gleam publish -y
         env:
           HEXPM_API_KEY: ${{ secrets.HEXPM_API_KEY }}
