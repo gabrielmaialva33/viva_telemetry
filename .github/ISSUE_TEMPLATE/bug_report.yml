@@ -1,0 +1,58 @@
+name: Bug report
+description: Report a reproducible problem in viva_telemetry.
+title: "bug: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Please include a minimal reproduction when possible.
+  - type: input
+    id: version
+    attributes:
+      label: viva_telemetry version
+      placeholder: "1.0.101"
+    validations:
+      required: true
+  - type: input
+    id: gleam
+    attributes:
+      label: Gleam and OTP versions
+      placeholder: "Gleam 1.14.0, OTP 27"
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Logging
+        - Metrics
+        - Benchmarks
+        - Documentation
+        - Build or release
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened?
+      description: Describe the observed behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+      description: Describe the expected behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Include code, commands, or output that reproduces the issue.
+      render: gleam
+    validations:
+      required: false

@@ -1,14 +1,14 @@
 # viva_telemetry
 
-[![Package Version](https://img.shields.io/hexpm/v/viva_telemetry)](https://hex.pm/packages/viva_telemetry)
-[![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/viva_telemetry/)
-[![CI](https://github.com/gabrielmaialva33/viva_telemetry/workflows/CI/badge.svg)](https://github.com/gabrielmaialva33/viva_telemetry/actions)
-
 Observability for Gleam applications running on the BEAM.
 
 `viva_telemetry` gives you structured logging, in-memory metrics, Prometheus
 export, BEAM memory visibility, and small statistical benchmarks without
 forcing a large framework into your application.
+
+- Package: [hex.pm/packages/viva_telemetry](https://hex.pm/packages/viva_telemetry)
+- Documentation: [hexdocs.pm/viva_telemetry](https://hexdocs.pm/viva_telemetry/)
+- Repository: [github.com/gabrielmaialva33/viva_telemetry](https://github.com/gabrielmaialva33/viva_telemetry)
 
 ## Installation
 
@@ -24,8 +24,7 @@ import viva_telemetry/log
 import viva_telemetry/metrics
 
 pub fn main() {
-  // Production on the BEAM: forward structured reports to Erlang's :logger.
-  // Use log.configure_console(log.debug_level) for local console output.
+  // Production on the BEAM.
   log.configure_erlang(log.info_level)
   log.info("Server started", [#("port", "8080")])
 
@@ -37,23 +36,26 @@ pub fn main() {
 }
 ```
 
-## What It Provides
+## Modules
 
-| Module                   | Purpose                      | Highlights                                                                                                            |
-|--------------------------|------------------------------|-----------------------------------------------------------------------------------------------------------------------|
-| `viva_telemetry/log`     | Structured application logs  | RFC 5424-style levels, context, lazy logs, sampling, console, JSON file, custom handlers, Erlang `:logger` forwarding |
-| `viva_telemetry/metrics` | Runtime metrics              | Counters, gauges, histograms, BEAM memory, Prometheus text export                                                     |
-| `viva_telemetry/bench`   | Local statistical benchmarks | Warmup, samples, mean, standard deviation, percentiles, IPS, JSON and Markdown output                                 |
+- `viva_telemetry/log` provides structured application logs, named loggers,
+  context, lazy logs, sampling, console output, JSON files, custom handlers, and
+  Erlang `:logger` forwarding.
+- `viva_telemetry/metrics` provides counters, gauges, histograms, BEAM memory
+  metrics, and Prometheus text export.
+- `viva_telemetry/bench` provides small local benchmarks with warmup, samples,
+  percentiles, IPS, JSON output, and Markdown output.
 
 ## Architecture
 
-The package is intentionally split into three independent surfaces:
+The package is intentionally split into three independent surfaces.
 
-| Area       | Data Flow                               | Storage                                 |
-|------------|-----------------------------------------|-----------------------------------------|
-| Logging    | log call -> entry -> handlers           | process-local configuration and context |
-| Metrics    | metric handle -> update -> export       | ETS tables                              |
-| Benchmarks | function -> timed samples -> statistics | in-memory result values                 |
+- Logging turns log calls into entries and dispatches them through handlers.
+  Handler configuration and context are process-local.
+- Metrics store counter, gauge, and histogram samples in ETS tables before
+  exporting them as Prometheus text.
+- Benchmarks run functions, collect timed samples, and return in-memory result
+  values for printing or export.
 
 For production logging on the BEAM, prefer `log.configure_erlang/1`. It keeps
 the Gleam API small while letting Erlang's built-in logger handle the runtime
@@ -148,11 +150,11 @@ Use the description constructors when you want Prometheus `HELP` metadata:
 
 ```gleam
 let requests =
-metrics.counter_with_labels_and_description(
-"http_requests_total",
-[#("method", "GET")],
-"Total HTTP requests.",
-)
+  metrics.counter_with_labels_and_description(
+    "http_requests_total",
+    [#("method", "GET")],
+    "Total HTTP requests.",
+  )
 ```
 
 ### Gauges
@@ -175,12 +177,12 @@ uses the standard `_bucket{le="..."}`, `_sum`, and `_count` series.
 
 ```gleam
 let latency =
-metrics.histogram_with_labels_and_description(
-"request_duration_seconds",
-[0.1, 0.5, 1.0],
-[#("route", "/users")],
-"Request duration in seconds.",
-)
+  metrics.histogram_with_labels_and_description(
+    "request_duration_seconds",
+    [0.1, 0.5, 1.0],
+    [#("route", "/users")],
+    "Request duration in seconds.",
+  )
 
 metrics.observe(latency, 0.25)
 ```
@@ -271,14 +273,12 @@ gleam docs build
 
 ## VIVA Ecosystem
 
-| Package          | Purpose                  |
-|------------------|--------------------------|
-| `viva_math`      | Mathematical foundations |
-| `viva_emotion`   | PAD emotional dynamics   |
-| `viva_tensor`    | Tensor compression       |
-| `viva_aion`      | Time perception          |
-| `viva_glyph`     | Symbolic language        |
-| `viva_telemetry` | Observability            |
+- `viva_math`: mathematical foundations.
+- `viva_emotion`: PAD emotional dynamics.
+- `viva_tensor`: tensor compression.
+- `viva_aion`: time perception.
+- `viva_glyph`: symbolic language.
+- `viva_telemetry`: observability.
 
 ## Inspiration
 
