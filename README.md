@@ -39,21 +39,21 @@ pub fn main() {
 
 ## What It Provides
 
-| Module | Purpose | Highlights |
-| ------ | ------- | ---------- |
-| `viva_telemetry/log` | Structured application logs | RFC 5424-style levels, context, lazy logs, sampling, console, JSON file, custom handlers, Erlang `:logger` forwarding |
-| `viva_telemetry/metrics` | Runtime metrics | Counters, gauges, histograms, BEAM memory, Prometheus text export |
-| `viva_telemetry/bench` | Local statistical benchmarks | Warmup, samples, mean, standard deviation, percentiles, IPS, JSON and Markdown output |
+| Module                   | Purpose                      | Highlights                                                                                                            |
+|--------------------------|------------------------------|-----------------------------------------------------------------------------------------------------------------------|
+| `viva_telemetry/log`     | Structured application logs  | RFC 5424-style levels, context, lazy logs, sampling, console, JSON file, custom handlers, Erlang `:logger` forwarding |
+| `viva_telemetry/metrics` | Runtime metrics              | Counters, gauges, histograms, BEAM memory, Prometheus text export                                                     |
+| `viva_telemetry/bench`   | Local statistical benchmarks | Warmup, samples, mean, standard deviation, percentiles, IPS, JSON and Markdown output                                 |
 
 ## Architecture
 
 The package is intentionally split into three independent surfaces:
 
-| Area | Data Flow | Storage |
-| ---- | --------- | ------- |
-| Logging | log call -> entry -> handlers | process-local configuration and context |
-| Metrics | metric handle -> update -> export | ETS tables |
-| Benchmarks | function -> timed samples -> statistics | in-memory result values |
+| Area       | Data Flow                               | Storage                                 |
+|------------|-----------------------------------------|-----------------------------------------|
+| Logging    | log call -> entry -> handlers           | process-local configuration and context |
+| Metrics    | metric handle -> update -> export       | ETS tables                              |
+| Benchmarks | function -> timed samples -> statistics | in-memory result values                 |
 
 For production logging on the BEAM, prefer `log.configure_erlang/1`. It keeps
 the Gleam API small while letting Erlang's built-in logger handle the runtime
@@ -148,11 +148,11 @@ Use the description constructors when you want Prometheus `HELP` metadata:
 
 ```gleam
 let requests =
-  metrics.counter_with_labels_and_description(
-    "http_requests_total",
-    [#("method", "GET")],
-    "Total HTTP requests.",
-  )
+metrics.counter_with_labels_and_description(
+"http_requests_total",
+[#("method", "GET")],
+"Total HTTP requests.",
+)
 ```
 
 ### Gauges
@@ -175,12 +175,12 @@ uses the standard `_bucket{le="..."}`, `_sum`, and `_count` series.
 
 ```gleam
 let latency =
-  metrics.histogram_with_labels_and_description(
-    "request_duration_seconds",
-    [0.1, 0.5, 1.0],
-    [#("route", "/users")],
-    "Request duration in seconds.",
-  )
+metrics.histogram_with_labels_and_description(
+"request_duration_seconds",
+[0.1, 0.5, 1.0],
+[#("route", "/users")],
+"Request duration in seconds.",
+)
 
 metrics.observe(latency, 0.25)
 ```
@@ -271,14 +271,14 @@ gleam docs build
 
 ## VIVA Ecosystem
 
-| Package | Purpose |
-| ------- | ------- |
-| `viva_math` | Mathematical foundations |
-| `viva_emotion` | PAD emotional dynamics |
-| `viva_tensor` | Tensor compression |
-| `viva_aion` | Time perception |
-| `viva_glyph` | Symbolic language |
-| `viva_telemetry` | Observability |
+| Package          | Purpose                  |
+|------------------|--------------------------|
+| `viva_math`      | Mathematical foundations |
+| `viva_emotion`   | PAD emotional dynamics   |
+| `viva_tensor`    | Tensor compression       |
+| `viva_aion`      | Time perception          |
+| `viva_glyph`     | Symbolic language        |
+| `viva_telemetry` | Observability            |
 
 ## Inspiration
 
