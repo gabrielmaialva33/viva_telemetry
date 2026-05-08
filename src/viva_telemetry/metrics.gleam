@@ -78,6 +78,13 @@ pub type BeamMemory {
 
 /// Create a new counter
 pub fn counter(name: String) -> Counter {
+  register_metric(name, "counter", "")
+  Counter(name: name, labels: dict.new())
+}
+
+/// Create a new counter with Prometheus HELP text.
+pub fn counter_with_description(name: String, description: String) -> Counter {
+  register_metric(name, "counter", description)
   Counter(name: name, labels: dict.new())
 }
 
@@ -86,6 +93,17 @@ pub fn counter_with_labels(
   name: String,
   labels: List(#(String, String)),
 ) -> Counter {
+  register_metric(name, "counter", "")
+  Counter(name: name, labels: dict.from_list(labels))
+}
+
+/// Create a labeled counter with Prometheus HELP text.
+pub fn counter_with_labels_and_description(
+  name: String,
+  labels: List(#(String, String)),
+  description: String,
+) -> Counter {
+  register_metric(name, "counter", description)
   Counter(name: name, labels: dict.from_list(labels))
 }
 
@@ -117,6 +135,13 @@ fn counter_key(counter: Counter) -> String {
 
 /// Create a new gauge
 pub fn gauge(name: String) -> Gauge {
+  register_metric(name, "gauge", "")
+  Gauge(name: name, labels: dict.new())
+}
+
+/// Create a new gauge with Prometheus HELP text.
+pub fn gauge_with_description(name: String, description: String) -> Gauge {
+  register_metric(name, "gauge", description)
   Gauge(name: name, labels: dict.new())
 }
 
@@ -125,6 +150,17 @@ pub fn gauge_with_labels(
   name: String,
   labels: List(#(String, String)),
 ) -> Gauge {
+  register_metric(name, "gauge", "")
+  Gauge(name: name, labels: dict.from_list(labels))
+}
+
+/// Create a labeled gauge with Prometheus HELP text.
+pub fn gauge_with_labels_and_description(
+  name: String,
+  labels: List(#(String, String)),
+  description: String,
+) -> Gauge {
+  register_metric(name, "gauge", description)
   Gauge(name: name, labels: dict.from_list(labels))
 }
 
@@ -145,9 +181,7 @@ pub fn gauge_dec(gauge: Gauge) -> Nil {
 
 /// Add to gauge
 pub fn gauge_add(gauge: Gauge, value: Float) -> Nil {
-  let key = gauge_key(gauge)
-  let current = get_gauge_value(key)
-  set_gauge_value(key, current +. value)
+  add_gauge_value(gauge_key(gauge), value)
 }
 
 /// Get gauge value
@@ -165,6 +199,17 @@ fn gauge_key(gauge: Gauge) -> String {
 
 /// Create a new histogram with buckets
 pub fn histogram(name: String, buckets: List(Float)) -> Histogram {
+  register_metric(name, "histogram", "")
+  Histogram(name: name, buckets: sort_buckets(buckets), labels: dict.new())
+}
+
+/// Create a new histogram with Prometheus HELP text.
+pub fn histogram_with_description(
+  name: String,
+  buckets: List(Float),
+  description: String,
+) -> Histogram {
+  register_metric(name, "histogram", description)
   Histogram(name: name, buckets: sort_buckets(buckets), labels: dict.new())
 }
 
@@ -174,6 +219,22 @@ pub fn histogram_with_labels(
   buckets: List(Float),
   labels: List(#(String, String)),
 ) -> Histogram {
+  register_metric(name, "histogram", "")
+  Histogram(
+    name: name,
+    buckets: sort_buckets(buckets),
+    labels: dict.from_list(labels),
+  )
+}
+
+/// Create a labeled histogram with Prometheus HELP text.
+pub fn histogram_with_labels_and_description(
+  name: String,
+  buckets: List(Float),
+  labels: List(#(String, String)),
+  description: String,
+) -> Histogram {
+  register_metric(name, "histogram", description)
   Histogram(
     name: name,
     buckets: sort_buckets(buckets),
@@ -190,8 +251,7 @@ pub fn default_latency_buckets() -> List(Float) {
 pub fn observe(histogram: Histogram, value: Float) -> Nil {
   // Update sum
   let sum_key = histogram_sample_key(histogram, "_sum", [])
-  let current_sum = get_gauge_value(sum_key)
-  set_gauge_value(sum_key, current_sum +. value)
+  add_gauge_value(sum_key, value)
 
   // Update count
   let count_key = histogram_sample_key(histogram, "_count", [])
@@ -282,33 +342,48 @@ fn dict_get_int(d: Dict(String, Int), key: String) -> Int {
 pub fn to_prometheus() -> String {
   let counters = get_all_counters()
   let gauges = get_all_gauges()
+  let metric_types = get_metric_types()
+  let metric_descriptions = get_metric_descriptions()
   let mem = beam_memory()
 
-  let counter_lines =
+  let counter_samples =
     dict.to_list(counters)
-    |> list.map(fn(kv) { kv.0 <> " " <> int.to_string(kv.1) })
+    |> list.map(fn(kv) { #(kv.0, int.to_string(kv.1), "counter") })
 
-  let gauge_lines =
+  let gauge_samples =
     dict.to_list(gauges)
-    |> list.map(fn(kv) { kv.0 <> " " <> float.to_string(kv.1) })
+    |> list.map(fn(kv) { #(kv.0, float.to_string(kv.1), "gauge") })
 
   let memory_lines = [
+    "# HELP beam_memory_total_bytes Total memory currently allocated by the BEAM.",
     "# TYPE beam_memory_total_bytes gauge",
     "beam_memory_total_bytes " <> int.to_string(mem.total),
+    "# HELP beam_memory_processes_bytes Memory currently allocated by BEAM processes.",
     "# TYPE beam_memory_processes_bytes gauge",
     "beam_memory_processes_bytes " <> int.to_string(mem.processes),
+    "# HELP beam_memory_system_bytes Memory currently allocated by the BEAM system.",
     "# TYPE beam_memory_system_bytes gauge",
     "beam_memory_system_bytes " <> int.to_string(mem.system),
+    "# HELP beam_memory_atom_bytes Memory currently allocated for atoms.",
     "# TYPE beam_memory_atom_bytes gauge",
     "beam_memory_atom_bytes " <> int.to_string(mem.atom),
+    "# HELP beam_memory_binary_bytes Memory currently allocated for binaries.",
     "# TYPE beam_memory_binary_bytes gauge",
     "beam_memory_binary_bytes " <> int.to_string(mem.binary),
+    "# HELP beam_memory_ets_bytes Memory currently allocated for ETS tables.",
     "# TYPE beam_memory_ets_bytes gauge",
     "beam_memory_ets_bytes " <> int.to_string(mem.ets),
   ]
 
-  [counter_lines, gauge_lines, memory_lines]
-  |> list.flatten
+  let #(metric_lines, _) =
+    render_samples(
+      list.append(counter_samples, gauge_samples),
+      metric_types,
+      metric_descriptions,
+      [],
+    )
+
+  list.append(metric_lines, memory_lines)
   |> string.join("\n")
   |> append_final_newline
 }
@@ -338,6 +413,84 @@ fn labels_to_string(labels: Dict(String, String)) -> String {
   }
 }
 
+fn render_samples(
+  samples: List(#(String, String, String)),
+  metric_types: Dict(String, String),
+  metric_descriptions: Dict(String, String),
+  seen_metadata: List(String),
+) -> #(List(String), List(String)) {
+  case samples {
+    [] -> #([], seen_metadata)
+    [sample, ..rest] -> {
+      let #(key, value, fallback_type) = sample
+      let metadata_name = metadata_name_for_sample(key, metric_types)
+      let sample_type =
+        dict.get(metric_types, metadata_name)
+        |> result_unwrap(fallback_type)
+      let metadata_lines = case list.contains(seen_metadata, metadata_name) {
+        True -> []
+        False -> metadata_lines(metadata_name, sample_type, metric_descriptions)
+      }
+      let seen_metadata = case list.contains(seen_metadata, metadata_name) {
+        True -> seen_metadata
+        False -> [metadata_name, ..seen_metadata]
+      }
+      let #(rest_lines, seen_metadata) =
+        render_samples(rest, metric_types, metric_descriptions, seen_metadata)
+      #(
+        list.append(metadata_lines, [key <> " " <> value, ..rest_lines]),
+        seen_metadata,
+      )
+    }
+  }
+}
+
+fn metadata_lines(
+  name: String,
+  metric_type: String,
+  metric_descriptions: Dict(String, String),
+) -> List(String) {
+  let type_line = "# TYPE " <> name <> " " <> metric_type
+  case dict.get(metric_descriptions, name) {
+    Ok("") | Error(_) -> [type_line]
+    Ok(description) -> [
+      "# HELP " <> name <> " " <> escape_help_text(description),
+      type_line,
+    ]
+  }
+}
+
+fn metadata_name_for_sample(
+  key: String,
+  metric_types: Dict(String, String),
+) -> String {
+  let sample_name = sample_name(key)
+  let candidates = [
+    sample_name,
+    strip_suffix(sample_name, "_bucket"),
+    strip_suffix(sample_name, "_sum"),
+    strip_suffix(sample_name, "_count"),
+  ]
+
+  candidates
+  |> list.find(fn(candidate) { dict.has_key(metric_types, candidate) })
+  |> result_unwrap(sample_name)
+}
+
+fn sample_name(key: String) -> String {
+  case string.split_once(key, "{") {
+    Ok(#(name, _labels)) -> name
+    Error(_) -> key
+  }
+}
+
+fn strip_suffix(value: String, suffix: String) -> String {
+  case string.ends_with(value, suffix) {
+    True -> string.drop_end(value, string.length(suffix))
+    False -> value
+  }
+}
+
 fn sort_buckets(buckets: List(Float)) -> List(Float) {
   list.sort(buckets, fn(a, b) { float.compare(a, with: b) })
 }
@@ -359,10 +512,23 @@ fn escape_label_value(value: String) -> String {
   |> string.replace(each: "\n", with: "\\n")
 }
 
+fn escape_help_text(value: String) -> String {
+  value
+  |> string.replace(each: "\\", with: "\\\\")
+  |> string.replace(each: "\n", with: "\\n")
+}
+
 fn append_final_newline(output: String) -> String {
   case output {
     "" -> ""
     _ -> output <> "\n"
+  }
+}
+
+fn result_unwrap(result: Result(a, b), default: a) -> a {
+  case result {
+    Ok(value) -> value
+    Error(_) -> default
   }
 }
 
@@ -382,6 +548,9 @@ fn get_gauge_value(key: String) -> Float
 @external(erlang, "viva_telemetry_metrics_ffi", "set_gauge_value")
 fn set_gauge_value(key: String, value: Float) -> Nil
 
+@external(erlang, "viva_telemetry_metrics_ffi", "add_gauge_value")
+fn add_gauge_value(key: String, value: Float) -> Nil
+
 @external(erlang, "viva_telemetry_metrics_ffi", "get_all_counters")
 fn get_all_counters() -> Dict(String, Int)
 
@@ -390,6 +559,19 @@ fn get_all_gauges() -> Dict(String, Float)
 
 @external(erlang, "viva_telemetry_metrics_ffi", "get_beam_memory")
 fn get_beam_memory() -> Dict(String, Int)
+
+@external(erlang, "viva_telemetry_metrics_ffi", "register_metric")
+fn register_metric(
+  name: String,
+  metric_type: String,
+  description: String,
+) -> Nil
+
+@external(erlang, "viva_telemetry_metrics_ffi", "get_metric_types")
+fn get_metric_types() -> Dict(String, String)
+
+@external(erlang, "viva_telemetry_metrics_ffi", "get_metric_descriptions")
+fn get_metric_descriptions() -> Dict(String, String)
 
 @external(erlang, "viva_telemetry_metrics_ffi", "clear_all")
 fn clear_all() -> Nil

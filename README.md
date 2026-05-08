@@ -144,6 +144,17 @@ metrics.inc(requests)
 metrics.inc_by(requests, 5)
 ```
 
+Use the description constructors when you want Prometheus `HELP` metadata:
+
+```gleam
+let requests =
+  metrics.counter_with_labels_and_description(
+    "http_requests_total",
+    [#("method", "GET")],
+    "Total HTTP requests.",
+  )
+```
+
 ### Gauges
 
 ```gleam
@@ -154,6 +165,9 @@ metrics.gauge_dec(connections)
 metrics.gauge_add(connections, 8.0)
 ```
 
+Gauge add, increment, and decrement operations are serialized in the FFI so
+concurrent updates do not overwrite each other.
+
 ### Histograms
 
 Histogram buckets are sorted when the histogram is created. Prometheus export
@@ -161,9 +175,12 @@ uses the standard `_bucket{le="..."}`, `_sum`, and `_count` series.
 
 ```gleam
 let latency =
-  metrics.histogram_with_labels("request_duration_seconds", [0.1, 0.5, 1.0], [
-    #("route", "/users"),
-  ])
+  metrics.histogram_with_labels_and_description(
+    "request_duration_seconds",
+    [0.1, 0.5, 1.0],
+    [#("route", "/users")],
+    "Request duration in seconds.",
+  )
 
 metrics.observe(latency, 0.25)
 ```
@@ -183,6 +200,8 @@ io.println(metrics.to_prometheus())
 Example output:
 
 ```text
+# HELP request_duration_seconds Request duration in seconds.
+# TYPE request_duration_seconds histogram
 request_duration_seconds_bucket{le="0.5",route="/users"} 1
 request_duration_seconds_bucket{le="+Inf",route="/users"} 1
 request_duration_seconds_sum{route="/users"} 0.25
@@ -243,7 +262,8 @@ gleam docs build
 - Logging handler configuration and `with_context` data are process-local.
   Configure each process explicitly, pass named loggers through your own call
   graph, or forward to Erlang `:logger` for runtime-wide handling.
-- Metrics use ETS-backed storage and atomic counter updates.
+- Metrics use ETS-backed storage, atomic counter updates, serialized gauge
+  updates, and Prometheus `HELP`/`TYPE` metadata when descriptions are provided.
 - Prometheus output avoids custom diagram or JavaScript rendering, so it is
   readable on HexDocs, Hex preview, GitHub, and terminals.
 - Benchmarks are intended for quick local comparisons, not replacement for a

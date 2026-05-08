@@ -7,15 +7,20 @@
     add_counter_value/2,
     get_gauge_value/1,
     set_gauge_value/2,
+    add_gauge_value/2,
     get_all_counters/0,
     get_all_gauges/0,
     get_beam_memory/0,
+    register_metric/3,
+    get_metric_types/0,
+    get_metric_descriptions/0,
     clear_all/0,
     ensure_table/0
 ]).
 
 -define(COUNTER_TABLE, viva_telemetry_counters).
 -define(GAUGE_TABLE, viva_telemetry_gauges).
+-define(METADATA_TABLE, viva_telemetry_metric_metadata).
 
 %% Ensure ETS tables exist
 ensure_table() ->
@@ -27,6 +32,11 @@ ensure_table() ->
     case ets:info(?GAUGE_TABLE) of
         undefined ->
             ets:new(?GAUGE_TABLE, [named_table, public, set, {write_concurrency, true}]);
+        _ -> ok
+    end,
+    case ets:info(?METADATA_TABLE) of
+        undefined ->
+            ets:new(?METADATA_TABLE, [named_table, public, set, {read_concurrency, true}]);
         _ -> ok
     end,
     ok.
@@ -54,8 +64,24 @@ get_gauge_value(Key) ->
 
 set_gauge_value(Key, Value) ->
     ensure_table(),
-    ets:insert(?GAUGE_TABLE, {Key, Value}),
+    with_gauge_lock(Key, fun() ->
+        ets:insert(?GAUGE_TABLE, {Key, Value})
+    end),
     nil.
+
+add_gauge_value(Key, Value) ->
+    ensure_table(),
+    with_gauge_lock(Key, fun() ->
+        Current = case ets:lookup(?GAUGE_TABLE, Key) of
+            [{Key, Existing}] -> Existing;
+            [] -> 0.0
+        end,
+        ets:insert(?GAUGE_TABLE, {Key, Current + Value})
+    end),
+    nil.
+
+with_gauge_lock(Key, Fun) ->
+    global:trans({{?MODULE, gauge, Key}, self()}, Fun).
 
 %% Get all counters as dict
 get_all_counters() ->
@@ -84,8 +110,32 @@ get_beam_memory() ->
         <<"ets">> => proplists:get_value(ets, MemInfo, 0)
     }.
 
+register_metric(Name, Type, Description) ->
+    ensure_table(),
+    Description1 = case {Description, ets:lookup(?METADATA_TABLE, Name)} of
+        {<<>>, [{Name, _ExistingType, ExistingDescription}]} -> ExistingDescription;
+        {"", [{Name, _ExistingType, ExistingDescription}]} -> ExistingDescription;
+        _ -> Description
+    end,
+    ets:insert(?METADATA_TABLE, {Name, Type, Description1}),
+    nil.
+
+get_metric_types() ->
+    ensure_table(),
+    maps:from_list([{Name, Type} || {Name, Type, _Description} <- ets:tab2list(?METADATA_TABLE)]).
+
+get_metric_descriptions() ->
+    ensure_table(),
+    maps:from_list([
+        {Name, Description}
+     || {Name, _Type, Description} <- ets:tab2list(?METADATA_TABLE),
+        Description =/= <<>>,
+        Description =/= ""
+    ]).
+
 clear_all() ->
     ensure_table(),
     ets:delete_all_objects(?COUNTER_TABLE),
     ets:delete_all_objects(?GAUGE_TABLE),
+    ets:delete_all_objects(?METADATA_TABLE),
     nil.

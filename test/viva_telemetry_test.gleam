@@ -257,6 +257,38 @@ pub fn metrics_counter_with_labels_test() {
   assert metrics.get_counter(c) == 1
 }
 
+pub fn metrics_counter_description_prometheus_test() {
+  metrics.reset()
+  let c =
+    metrics.counter_with_labels_and_description(
+      "http_requests_total",
+      [#("method", "GET")],
+      "Total HTTP requests.",
+    )
+  metrics.inc(c)
+
+  let output = metrics.to_prometheus()
+  assert string.contains(
+    output,
+    "# HELP http_requests_total Total HTTP requests.",
+  )
+  assert string.contains(output, "# TYPE http_requests_total counter")
+  assert string.contains(output, "http_requests_total{method=\"GET\"} 1")
+}
+
+pub fn metrics_description_is_preserved_test() {
+  metrics.reset()
+  let described =
+    metrics.counter_with_description("jobs_processed_total", "Processed jobs.")
+  let plain = metrics.counter("jobs_processed_total")
+  metrics.inc(described)
+  metrics.inc(plain)
+
+  let output = metrics.to_prometheus()
+  assert string.contains(output, "# HELP jobs_processed_total Processed jobs.")
+  assert metrics.get_counter(plain) == 2
+}
+
 pub fn metrics_counter_does_not_decrement_test() {
   metrics.reset()
   let c = metrics.counter("monotonic_counter")
@@ -279,6 +311,24 @@ pub fn metrics_gauge_test() {
 
   metrics.gauge_add(g, 8.0)
   assert metrics.get_gauge(g) == 50.0
+}
+
+pub fn metrics_gauge_description_prometheus_test() {
+  metrics.reset()
+  let g =
+    metrics.gauge_with_description(
+      "active_connections",
+      "Current active connections.",
+    )
+  metrics.gauge_add(g, 2.5)
+
+  let output = metrics.to_prometheus()
+  assert string.contains(
+    output,
+    "# HELP active_connections Current active connections.",
+  )
+  assert string.contains(output, "# TYPE active_connections gauge")
+  assert string.contains(output, "active_connections 2.5")
 }
 
 pub fn metrics_histogram_test() {
@@ -333,13 +383,21 @@ pub fn metrics_prometheus_export_test() {
 pub fn metrics_prometheus_histogram_format_test() {
   metrics.reset()
   let h =
-    metrics.histogram_with_labels("request_duration_seconds", [0.1, 0.5], [
-      #("route", "/users"),
-    ])
+    metrics.histogram_with_labels_and_description(
+      "request_duration_seconds",
+      [0.5, 0.1],
+      [#("route", "/users")],
+      "Request duration in seconds.",
+    )
 
   metrics.observe(h, 0.25)
 
   let output = metrics.to_prometheus()
+  assert string.contains(
+    output,
+    "# HELP request_duration_seconds Request duration in seconds.",
+  )
+  assert string.contains(output, "# TYPE request_duration_seconds histogram")
   assert string.contains(
     output,
     "request_duration_seconds_bucket{le=\"0.5\",route=\"/users\"} 1",
